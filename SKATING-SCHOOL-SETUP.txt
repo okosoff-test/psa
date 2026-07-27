@@ -1,0 +1,55 @@
+HOCKEY SKATING SCHOOL MODULE
+============================
+
+New pages
+---------
+Admin:  /school-admin.html
+Parent: /school.html
+
+The Skating School module uses the SAME admin login/session as the existing portal,
+but stores school contacts, programs, sessions, attendance and payments in separate
+PostgreSQL tables. It does not use the pickup-hockey weekly players/waitlist tables.
+
+Implemented
+-----------
+- Parent/player contacts: DOB, birth year, skill, parent name/email/cell, notes.
+- Filter contacts by birth year and skill.
+- Custom contact groups.
+- Programs/seasons with arena, time, capacity.
+- Full-time, drop-in and wait-list enrollments.
+- Generate 1-20 weekly skate sessions from one start date.
+- Calendar of upcoming skates.
+- Attendance request: Attending / Not Attending / No Reply.
+- Reminder can target No Reply only.
+- Wait-list players can receive the same attendance/availability request.
+- Parent-facing attendance response link.
+- Parent can mark payment method as E-Transfer or Cash.
+- Admin payment status: Owing / Paid / Partial / Complimentary.
+- Private bulk email/SMS filters by program, enrollment type, birth year or skill.
+- Each parent is messaged individually; recipient addresses are not exposed to other parents.
+
+Email configuration (optional)
+------------------------------
+This build uses Resend's HTTPS API so no additional npm package is required.
+Add these Render environment variables:
+  RESEND_API_KEY=...
+  SCHOOL_FROM_EMAIL=...
+  SCHOOL_NAME=Your School Name
+  PUBLIC_BASE_URL=https://your-domain.example
+
+SMS configuration (optional)
+----------------------------
+This build uses Twilio's HTTPS API so no additional npm package is required.
+Add:
+  TWILIO_ACCOUNT_SID=...
+  TWILIO_AUTH_TOKEN=...
+  TWILIO_FROM_NUMBER=...
+
+Until provider credentials are configured, all school administration/database features
+still work. The dashboard will show Email/SMS as NOT CONFIGURED, and attempted messages
+are logged with that status rather than exposing or losing the target recipient list.
+
+Database
+--------
+On normal startup with DATABASE_URL configured, the new school_* tables are created
+with CREATE TABLE IF NOT EXISTS. Existing pickup-hockey tables are not renamed or replaced.
