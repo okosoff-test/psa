@@ -337,19 +337,27 @@ app.post('/api/public/signup', async (req, res) => {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    // Lock the selected program row first. PostgreSQL does not allow
+    // SELECT ... FOR UPDATE on a grouped query.
     const programResult = await client.query(`
-      SELECT p.*,
-        COUNT(e.id) FILTER (WHERE e.enrollment_type IN ('full_time','drop_in'))::int AS enrolled_count
-      FROM programs p LEFT JOIN enrollments e ON e.program_id=p.id
-      WHERE p.id=$1 AND p.active=TRUE
-      GROUP BY p.id
-      FOR UPDATE OF p
+      SELECT *
+      FROM programs
+      WHERE id=$1 AND active=TRUE
+      FOR UPDATE
     `, [Number(b.program_id)]);
     if (!programResult.rowCount) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'That program is no longer available.' });
     }
     const program = programResult.rows[0];
+    const enrollmentCountResult = await client.query(`
+      SELECT COUNT(*)::int AS enrolled_count
+      FROM enrollments
+      WHERE program_id=$1
+        AND enrollment_type IN ('full_time','drop_in')
+    `, [program.id]);
+    program.enrolled_count = enrollmentCountResult.rows[0].enrolled_count;
+
     const duplicate = await client.query(`
       SELECT c.id FROM contacts c
       JOIN enrollments e ON e.contact_id=c.id
