@@ -29,6 +29,7 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 app.use('/api/auth/login', rateLimit({ windowMs: 15 * 60 * 1000, limit: 20 }));
+app.use('/api/public/signup', rateLimit({ windowMs: 15 * 60 * 1000, limit: 10 }));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
 const q = (text, params = []) => pool.query(text, params);
@@ -302,6 +303,93 @@ app.get('/api/sessions/:id/attendance',adminOnly,async(req,res)=>{
   await ensureAttendance(Number(req.params.id)); const r=await q(`SELECT a.*,e.enrollment_type,e.payment_method,e.payment_status,c.player_first_name,c.player_last_name,c.parent_first_name,c.parent_last_name,c.email,c.phone FROM attendance a JOIN enrollments e ON e.id=a.enrollment_id JOIN contacts c ON c.id=e.contact_id WHERE a.session_id=$1 ORDER BY CASE e.enrollment_type WHEN 'full_time' THEN 1 WHEN 'drop_in' THEN 2 ELSE 3 END,c.player_first_name,c.player_last_name`,[Number(req.params.id)]);res.json(r.rows);
 });
 app.put('/api/attendance/:id',adminOnly,async(req,res)=>{const r=await q(`UPDATE attendance SET status=$1,responded_at=CASE WHEN $1='no_reply' THEN NULL ELSE NOW() END,updated_at=NOW() WHERE id=$2 RETURNING *`,[req.body.status,Number(req.params.id)]);res.json(r.rows[0]);});
+
+
+
+app.get('/api/public/programs', async (_req, res) => {
+  try {
+    const result = await q(`
+      SELECT p.id,p.name,p.season,p.skill_level,p.min_birth_year,p.max_birth_year,
+             p.arena,p.default_start_time,p.default_end_time,p.capacity,p.start_date,p.end_date,
+             COUNT(e.id) FILTER (WHERE e.enrollment_type IN ('full_time','drop_in'))::int AS enrolled_count
+      FROM programs p
+      LEFT JOIN enrollments e ON e.program_id=p.id
+      WHERE p.active=TRUE AND (p.end_date IS NULL OR p.end_date >= CURRENT_DATE)
+      GROUP BY p.id
+      ORDER BY p.start_date NULLS LAST,p.name
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Could not load available programs.' });
+  }
+});
+
+app.post('/api/public/signup', async (req, res) => {
+  const b = req.body || {};
+  if (clean(b.website)) return res.status(400).json({ error: 'Invalid submission.' });
+  const required = ['player_first_name','player_last_name','dob','parent_first_name','parent_last_name','email','phone','program_id','payment_method'];
+  if (required.some(key => !clean(b[key]))) return res.status(400).json({ error: 'Please complete all required fields.' });
+  if (!['etransfer','cash'].includes(b.payment_method)) return res.status(400).json({ error: 'Choose E-transfer or cash.' });
+  const email = String(b.email).trim().toLowerCase();
+  if (!/^\S+@\S+\.\S+$/.test(email)) return res.status(400).json({ error: 'Enter a valid email address.' });
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const programResult = await client.query(`
+      SELECT p.*,
+        COUNT(e.id) FILTER (WHERE e.enrollment_type IN ('full_time','drop_in'))::int AS enrolled_count
+      FROM programs p LEFT JOIN enrollments e ON e.program_id=p.id
+      WHERE p.id=$1 AND p.active=TRUE
+      GROUP BY p.id
+      FOR UPDATE OF p
+    `, [Number(b.program_id)]);
+    if (!programResult.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'That program is no longer available.' });
+    }
+    const program = programResult.rows[0];
+    const duplicate = await client.query(`
+      SELECT c.id FROM contacts c
+      JOIN enrollments e ON e.contact_id=c.id
+      WHERE e.program_id=$1 AND LOWER(c.email)=LOWER($2)
+        AND LOWER(c.player_first_name)=LOWER($3) AND LOWER(c.player_last_name)=LOWER($4)
+      LIMIT 1
+    `, [program.id,email,clean(b.player_first_name),clean(b.player_last_name)]);
+    if (duplicate.rowCount) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({ error: 'This player is already registered for that program.' });
+    }
+
+    const contact = await client.query(`
+      INSERT INTO contacts(player_first_name,player_last_name,dob,skill_level,parent_first_name,parent_last_name,email,phone,notes)
+      VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING id
+    `, [clean(b.player_first_name),clean(b.player_last_name),b.dob,nullable(clean(b.skill_level)),clean(b.parent_first_name),clean(b.parent_last_name),email,clean(b.phone),nullable(clean(b.notes))]);
+
+    const capacity = Number(program.capacity || 0);
+    const enrollmentType = capacity > 0 && Number(program.enrolled_count || 0) >= capacity ? 'waitlist' : 'full_time';
+    const enrollment = await client.query(`
+      INSERT INTO enrollments(program_id,contact_id,enrollment_type,payment_method,payment_status,notes)
+      VALUES($1,$2,$3,$4,'owing',$5) RETURNING id
+    `, [program.id,contact.rows[0].id,enrollmentType,b.payment_method,nullable(clean(b.notes))]);
+
+    const sessions = await client.query('SELECT id FROM sessions WHERE program_id=$1 AND session_date >= CURRENT_DATE',[program.id]);
+    for (const session of sessions.rows) {
+      await client.query(`INSERT INTO attendance(session_id,enrollment_id,response_token)
+        VALUES($1,$2,$3) ON CONFLICT(session_id,enrollment_id) DO NOTHING`,
+        [session.id,enrollment.rows[0].id,crypto.randomBytes(24).toString('hex')]);
+    }
+    await client.query('COMMIT');
+    res.status(201).json({ ok:true, enrollment_type: enrollmentType, program_name: program.name });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(err);
+    res.status(500).json({ error: 'Registration could not be completed.' });
+  } finally {
+    client.release();
+  }
+});
 
 app.get('/api/calendar', async(req,res)=>{
   const from=req.query.from||new Date().toISOString().slice(0,8)+'01'; const to=req.query.to||'2999-12-31';
