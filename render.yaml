@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: psa
+    name: pavelhockeyacademy
     runtime: node
     plan: free
     buildCommand: npm install
