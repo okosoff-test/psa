@@ -1,18 +1,119 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Player Registration | Pavel Hockey Academy</title><link rel="stylesheet" href="/styles.css"></head><body>
-<div class="topbar"><div class="brand">Pavel Hockey Academy</div><a class="btn" href="/">Schedule</a></div>
-<main class="shell"><div class="card" style="max-width:860px;margin:0 auto"><h1>Player Registration</h1><p class="muted">Register a player for an available skating program. Required fields are marked with *.</p><div id="signupMsg"></div>
-<form id="signupForm" class="form-grid">
-<div class="field wide"><label>Player First Name *</label><input id="playerFirst" required autocomplete="given-name"></div>
-<div class="field wide"><label>Player Last Name *</label><input id="playerLast" required autocomplete="family-name"></div>
-<div class="field wide"><label>Date of Birth *</label><input id="dob" type="date" required></div>
-<div class="field wide"><label>Current Skill Level</label><select id="skill"><option value="">Select</option><option>Beginner</option><option>Intermediate</option><option>Advanced</option><option>House League</option><option>Travel / Rep</option></select></div>
-<div class="field wide"><label>Parent/Guardian First Name *</label><input id="parentFirst" required autocomplete="given-name"></div>
-<div class="field wide"><label>Parent/Guardian Last Name *</label><input id="parentLast" required autocomplete="family-name"></div>
-<div class="field wide"><label>Email *</label><input id="email" type="email" required autocomplete="email"></div>
-<div class="field wide"><label>Cell Phone *</label><input id="phone" type="tel" required autocomplete="tel" placeholder="519-555-1234"></div>
-<div class="field full"><label>Program *</label><select id="program" required><option value="">Loading available programs…</option></select><div id="programInfo" class="muted" style="margin-top:6px"></div></div>
-<div class="field full"><label>Payment Method *</label><div class="actions"><label><input type="radio" name="payment" value="etransfer" required> E-transfer</label><label><input type="radio" name="payment" value="cash" required> Cash</label></div></div>
-<div class="field full"><label>Notes / Medical or Skating Information</label><textarea id="notes" placeholder="Optional information for the academy"></textarea></div>
-<div class="hidden"><label>Website<input id="website" tabindex="-1" autocomplete="off"></label></div>
-<div class="actions full"><button id="submitBtn" class="btn primary" type="submit">Register Player</button></div>
-</form></div></main><script src="/signup.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Player Registration | Pavel Hockey Academy</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body class="signup-page">
+  <main class="signup-shell">
+    <section class="signup-card">
+      <div class="signup-heading">
+        <div class="signup-kicker">Pavel Hockey Academy</div>
+        <h1>Player Registration</h1>
+        <p>Choose an available skating program and complete the player information below.</p>
+      </div>
+
+      <section class="program-card" id="programCard">
+        <div class="program-date" id="programDates">Choose a program below</div>
+        <div class="program-location" id="programLocation">Pavel Hockey Academy</div>
+        <div class="program-time" id="programTime">Program details will appear here</div>
+        <div class="program-stats">
+          <div class="program-stat">
+            <div class="program-stat-number" id="spotsLeft">--</div>
+            <div class="program-stat-label">spots available</div>
+          </div>
+          <div class="program-stat">
+            <div class="program-stat-number secondary" id="programCapacity">--</div>
+            <div class="program-stat-label">program capacity</div>
+          </div>
+        </div>
+      </section>
+
+      <div class="waitlist-alert" id="waitlistAlert" hidden>
+        <h3>Program Full</h3>
+        <p>This registration will be added to the waiting list.</p>
+      </div>
+
+      <div id="signupMsg"></div>
+
+      <form id="signupForm" class="signup-form">
+        <div class="signup-section-title">Select Program</div>
+        <label class="signup-label" for="program">Program *</label>
+        <select id="program" required>
+          <option value="">Loading available programs…</option>
+        </select>
+        <div id="programInfo" class="program-extra"></div>
+
+        <div class="signup-section-title">Player Information</div>
+        <div class="signup-grid">
+          <div>
+            <label class="signup-label" for="playerFirst">Player First Name *</label>
+            <input id="playerFirst" required autocomplete="given-name">
+          </div>
+          <div>
+            <label class="signup-label" for="playerLast">Player Last Name *</label>
+            <input id="playerLast" required autocomplete="family-name">
+          </div>
+          <div>
+            <label class="signup-label" for="dob">Date of Birth *</label>
+            <input id="dob" type="date" required>
+          </div>
+          <div>
+            <label class="signup-label" for="skill">Current Skill Level</label>
+            <select id="skill">
+              <option value="">Select</option>
+              <option>Beginner</option>
+              <option>Intermediate</option>
+              <option>Advanced</option>
+              <option>House League</option>
+              <option>Travel / Rep</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="signup-section-title">Parent / Guardian</div>
+        <div class="signup-grid">
+          <div>
+            <label class="signup-label" for="parentFirst">First Name *</label>
+            <input id="parentFirst" required autocomplete="given-name">
+          </div>
+          <div>
+            <label class="signup-label" for="parentLast">Last Name *</label>
+            <input id="parentLast" required autocomplete="family-name">
+          </div>
+          <div>
+            <label class="signup-label" for="email">Email *</label>
+            <input id="email" type="email" required autocomplete="email">
+          </div>
+          <div>
+            <label class="signup-label" for="phone">Cell Phone *</label>
+            <input id="phone" type="tel" required autocomplete="tel" placeholder="519-555-1234">
+          </div>
+        </div>
+
+        <div class="signup-section-title">Payment Method</div>
+        <div class="payment-choice-grid">
+          <label class="payment-choice">
+            <input type="radio" name="payment" value="etransfer" required>
+            <span>E-transfer</span>
+          </label>
+          <label class="payment-choice">
+            <input type="radio" name="payment" value="cash" required>
+            <span>Cash</span>
+          </label>
+        </div>
+
+        <label class="signup-label" for="notes">Notes / Medical or Skating Information</label>
+        <textarea id="notes" placeholder="Optional information for the academy"></textarea>
+
+        <div class="hidden"><label>Website<input id="website" tabindex="-1" autocomplete="off"></label></div>
+        <button id="submitBtn" class="signup-submit" type="submit">Register Player</button>
+        <a class="signup-back" href="/">View Schedule</a>
+      </form>
+    </section>
+  </main>
+  <script src="/signup.js"></script>
+</body>
+</html>
